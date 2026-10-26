@@ -1,43 +1,184 @@
-import React, {useState} from 'react'
-import {createRoot} from 'react-dom/client'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import './style.css'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+const QUICK_ITEMS = ['clean water', 'clean cloth', 'gauze', 'bandage', 'ice pack', 'soap']
+const STAGES = ['Reading the image', 'Running the EfficientNet-B0 classifier', 'Retrieving first-aid facts', 'Writing your guidance']
 
-function App(){
-  const [file,setFile]=useState(null), [items,setItems]=useState(''), [result,setResult]=useState(null), [busy,setBusy]=useState(false), [error,setError]=useState('')
-  async function analyze(){
-    if(!file){setError('Please select a wound image first.');return}
-    setBusy(true); setError(''); setResult(null)
-    const form=new FormData(); form.append('image',file); form.append('items',items)
-    try{
-      const r=await fetch(`${API}/api/analyze`,{method:'POST',body:form})
-      const data=await r.json(); if(!r.ok) throw new Error(data.detail||'Analysis failed')
-      setResult(data)
-    }catch(e){setError(e.message)}finally{setBusy(false)}
-  }
-  return <main className="page">
-    <header><div><span className="eyebrow">AI FIRST-AID PROTOTYPE</span><h1>WoundGuide</h1><p>Classify a cut, burn, or bruise and get evidence-based temporary first-aid guidance based on the items you have.</p></div><div className="status">{busy?'Analyzing…':'Ready'}</div></header>
-    <section className="grid">
-      <div className="card input-card">
-        <h2>1. Show the injury</h2>
-        <label className="drop"><input type="file" accept="image/*" capture="environment" onChange={e=>setFile(e.target.files?.[0]||null)}/><strong>{file?file.name:'Choose or capture an image'}</strong><span>JPG, PNG or WEBP · up to 10 MB</span></label>
-        <h2>2. What do you have?</h2>
-        <textarea value={items} onChange={e=>setItems(e.target.value)} placeholder="Example: clean water, clean cloth, gauze, ice pack" />
-        <button onClick={analyze} disabled={busy}>{busy?'Analyzing…':'Analyze & Get Guidance'}</button>
-        {error&&<div className="error">{error}</div>}
-      </div>
-      <div className="card result-card">
-        {!result?<div className="empty"><div className="icon">+</div><h2>Your guidance will appear here</h2><p>The ML model identifies the injury category first. The knowledge base then supplies the facts used by the selected LLM provider.</p></div>:<>
-          <div className="result-head"><div><span className="eyebrow">MODEL RESULT</span><h2>{result.prediction.injury}</h2></div><div className="confidence">{result.prediction.confidence}%<small>confidence</small></div></div>
-          <div className="bar"><span style={{width:`${result.prediction.confidence}%`}}/></div>
-          <div className="guidance">{result.guidance.split('\n').map((x,i)=><p key={i}>{x}</p>)}</div>
-          {result.matched_materials.length>0&&<div><h3>Matched items</h3><div className="chips">{result.matched_materials.map((m,i)=><span key={i}>{m.item}</span>)}</div></div>}
-          <div className="notice">This is a college-project prototype for first-aid education, not a medical diagnosis. Seek professional care for serious, worsening, or uncertain injuries.</div>
-        </>}
-      </div>
+function Section({ id, title, intro, children }) {
+  return (
+    <section id={id} className="block">
+      <h2>{title}</h2>
+      {intro && <p className="intro">{intro}</p>}
+      {children}
     </section>
-    <footer>Provider: <strong>{result?.provider||'configured on backend'}</strong> · No automatic provider fallback</footer>
-  </main>
+  )
 }
-createRoot(document.getElementById('root')).render(<App/>)
+
+function GuideList({ title, tone, mark, items }) {
+  if (!items?.length) return null
+  return (
+    <div className={`gl ${tone}`}>
+      <h3>{title}</h3>
+      <ul>{items.map((t, i) => <li key={i}><span className="mark" aria-hidden>{mark}</span><span>{t}</span></li>)}</ul>
+    </div>
+  )
+}
+
+function Result({ result }) {
+  const { prediction: p, structured: s } = result
+  const probs = Object.entries(p.probabilities).sort((a, b) => b[1] - a[1])
+  return (
+    <div className="result">
+      <div className="verdict">
+        <div className="ring" style={{ '--v': p.confidence }}><span>{Math.round(p.confidence)}%</span></div>
+        <div>
+          <p className="muted">The model's best match</p>
+          <h3 className="injury">{p.injury}</h3>
+          <p className="muted small">Not a diagnosis. Confidence reflects the model's certainty, not medical accuracy.</p>
+        </div>
+        <div className="probs">
+          {probs.map(([name, v]) => (
+            <div key={name} className="prob"><span>{name}</span><div className="track"><i style={{ width: `${v}%` }} /></div><b>{v}%</b></div>
+          ))}
+        </div>
+      </div>
+
+      {result.low_confidence && <div className="alert amber"><strong>Low confidence.</strong> The model is unsure about this image. Retake the photo in good light, closer to the injury, or follow the warning signs below carefully.</div>}
+      {s?.see_doctor_now && <div className="alert red"><strong>Seek professional care.</strong> The guidance suggests this injury may need urgent medical attention.</div>}
+
+      {s ? (
+        <>
+          {s.summary && <p className="summary">{s.summary}</p>}
+          <div className="gl-grid">
+            <GuideList title="What to do" tone="do" mark="✓" items={s.do} />
+            <GuideList title="What not to do" tone="dont" mark="✕" items={s.dont} />
+          </div>
+          {s.items?.length > 0 && (
+            <div className="gl items">
+              <h3>Using the items you have</h3>
+              <div className="itemrows">{s.items.map((it, i) => <div key={i}><strong>{it.item}</strong><span>{it.how_to_use}</span></div>)}</div>
+            </div>
+          )}
+          <div className="gl-grid">
+            <GuideList title="Good signs" tone="good" mark="+" items={s.good_signs} />
+            <GuideList title="Warning signs – see a doctor" tone="warn" mark="!" items={s.warning_signs} />
+          </div>
+        </>
+      ) : (
+        <div className="gl"><h3>Guidance</h3>{result.guidance.split('\n').map((x, i) => <p key={i}>{x}</p>)}</div>
+      )}
+
+      {result.sources?.length > 0 && (
+        <p className="small muted">Knowledge base references: {result.sources.map((x, i) => <span key={i}><a href={x.url} target="_blank" rel="noreferrer">{x.name}</a>{i < result.sources.length - 1 ? ', ' : ''}</span>)}. {result.guidance_source === 'knowledge_base' ? 'Guidance shown directly from the knowledge base.' : `Guidance generated by ${result.provider}.`}</p>
+      )}
+    </div>
+  )
+}
+
+function App() {
+  const [file, setFile] = useState(null)
+  const [items, setItems] = useState('')
+  const [result, setResult] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [stage, setStage] = useState(0)
+  const [error, setError] = useState('')
+  const [drag, setDrag] = useState(false)
+  const resultRef = useRef(null)
+  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file])
+
+  useEffect(() => {
+    if (!busy) return
+    const t = setInterval(() => setStage(s => Math.min(s + 1, STAGES.length - 1)), 1800)
+    return () => clearInterval(t)
+  }, [busy])
+
+  const chosen = items.split(',').map(x => x.trim().toLowerCase()).filter(Boolean)
+  function toggleItem(name) {
+    const next = chosen.includes(name) ? chosen.filter(x => x !== name) : [...chosen, name]
+    setItems(next.join(', '))
+  }
+  function pick(f) {
+    if (f && f.type.startsWith('image/')) { setFile(f); setError('') } else if (f) setError('Please choose an image file (JPG, PNG or WEBP).')
+  }
+
+  async function analyze() {
+    if (!file) { setError('Please add a photo of the injury first.'); return }
+    setBusy(true); setStage(0); setError(''); setResult(null)
+    const form = new FormData(); form.append('image', file); form.append('items', items)
+    try {
+      const r = await fetch(`${API}/api/analyze`, { method: 'POST', body: form })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.detail || 'Analysis failed')
+      setResult(data)
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    } catch (e) {
+      setError(e.message === 'Failed to fetch' ? 'Cannot reach the backend. Check that it is running on ' + API : e.message)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <>
+      <nav className="nav">
+        <a href="#top" className="brand">WoundGuide</a>
+        <div><a href="#analyze">Analyze</a><a href="#how">How it works</a><a href="#model">The model</a><a href="#safety">Safety</a></div>
+      </nav>
+
+      <header id="top" className="hero">
+        <h1>Know what to do in the first minutes after an injury.</h1>
+        <p>Upload a photo of a cut, burn or bruise, tell us what you have at hand, and get clear first-aid steps drawn from a verified knowledge base.</p>
+        <a className="cta" href="#analyze">Start an analysis</a>
+      </header>
+
+      <main className="wrap">
+        <Section id="analyze" title="Analyze an injury" intro="Two quick inputs. Your photo is processed by the backend and is not stored.">
+          <div className="panel">
+            <div className="col">
+              <h3>1. Add a photo</h3>
+              <label className={`drop ${drag ? 'drag' : ''}`}
+                onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
+                onDrop={e => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0]) }}>
+                <input type="file" accept="image/*" capture="environment" onChange={e => pick(e.target.files?.[0])} />
+                {preview ? <img src={preview} alt="Selected injury" /> : <><strong>Drop a photo here, or tap to choose</strong><span>JPG, PNG or WEBP, up to 10 MB. On a phone this opens the camera.</span></>}
+              </label>
+              {file && <p className="small muted">{file.name} · <button className="link" onClick={() => { setFile(null); setResult(null) }}>remove</button></p>}
+            </div>
+            <div className="col">
+              <h3>2. What do you have?</h3>
+              <div className="chips">{QUICK_ITEMS.map(n => <button key={n} type="button" className={chosen.includes(n) ? 'on' : ''} onClick={() => toggleItem(n)}>{n}</button>)}</div>
+              <textarea value={items} onChange={e => setItems(e.target.value)} placeholder="Or type your own, separated by commas" />
+              <button className="primary" onClick={analyze} disabled={busy}>{busy ? 'Analyzing…' : 'Get first-aid guidance'}</button>
+              {busy && <ol className="stages">{STAGES.map((t, i) => <li key={t} className={i < stage ? 'done' : i === stage ? 'now' : ''}>{t}</li>)}</ol>}
+              {error && <div className="alert red" role="alert">{error}</div>}
+            </div>
+          </div>
+          <div ref={resultRef} className="anchor">{result && <Result result={result} />}</div>
+        </Section>
+
+        <Section id="how" title="How it works" intro="Three stages, each doing one job.">
+          <div className="steps">
+            <div><h4>Classify</h4><p>EfficientNet-B0, fine-tuned on wound images, predicts bruise, burn or cut with a confidence score.</p></div>
+            <div><h4>Retrieve</h4><p>The predicted category and your items are matched to entries in a small first-aid knowledge base.</p></div>
+            <div><h4>Explain</h4><p>A language model turns only those retrieved facts into short steps, so it is not asked to invent medical advice.</p></div>
+          </div>
+        </Section>
+
+        <Section id="model" title="The model" intro="Transfer learning from ImageNet, then fine-tuning the last feature blocks.">
+          <div className="stats">
+            <div><b>231</b><span>images (122 bruise, 59 burn, 50 cut)</span></div>
+            <div><b>78.4%</b><span>test accuracy after fine-tuning</span></div>
+            <div><b>90.9%</b><span>best validation accuracy</span></div>
+            <div><b>3</b><span>supported injury classes</span></div>
+          </div>
+        </Section>
+
+        <Section id="safety" title="Safety">
+          <div className="alert amber">This is a college project for first-aid education. It cannot diagnose injuries and only knows bruises, burns and cuts. Call your local emergency number for heavy bleeding, large or deep burns, head injuries, or if you are unsure.</div>
+        </Section>
+      </main>
+      <footer>WoundGuide · College ML project · Guidance provider: {result?.provider || 'set on backend'}</footer>
+    </>
+  )
+}
+createRoot(document.getElementById('root')).render(<App />)
