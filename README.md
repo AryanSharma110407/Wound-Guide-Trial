@@ -1,45 +1,65 @@
-# WoundGuide — AI First-Aid Prototype
+# WoundGuide – AI First-Aid Assistant
 
-A lightweight college-project prototype that combines a fine-tuned EfficientNet-B0 wound classifier, a small retrieval-based knowledge base, and a selectable LLM provider (Gemini or OmniRoute).
+A college machine-learning project. The user uploads a photo of a **cut, burn or bruise** and lists the items they have. The system classifies the injury with a fine-tuned **EfficientNet-B0**, retrieves matching facts from a **JSON knowledge base (RAG)**, and an **LLM** (Groq or OmniRoute) turns those facts into clear first-aid guidance: what to do, what not to do, how to use the items, good signs and warning signs.
 
-## Current scope
-- Image classification: **bruise, burn, cut**
-- Existing model: `best_wound_model_finetuned.pth`
-- Knowledge retrieval: injury guidance + available-material guidance
-- LLM provider: **Gemini by default OR OmniRoute by explicit configuration**
-- No automatic Gemini fallback
-- React frontend with mobile-friendly image capture support
-- FastAPI backend
+> **Safety note.** This is an educational prototype, not a medical device. It cannot diagnose injuries. Seek professional care for severe, worsening or uncertain injuries.
 
-## Important model detail
-Your Colab uses `torchvision.datasets.ImageFolder`. `ImageFolder` sorts class-directory names alphabetically, so the actual model mapping is:
+## Features
+- Image classification: bruise, burn, cut (optional 4th class `not_wound`, see section 7)
+- Rejects unclear or non-injury photos and asks for a better one
+- Knowledge-base retrieval with item aliases (e.g. "ice" finds "ice pack", "haldi" finds "turmeric")
+- Structured guidance cards: Do, Don't, Your items, Good signs, Warning signs
+- Falls back to the knowledge base directly if the LLM fails, so the page never breaks
+- Switchable LLM provider (Groq or OmniRoute) through `.env`, no automatic fallback between providers
+- Responsive React interface with camera capture on phones
 
+## Tech stack
+| Layer | Tools |
+|---|---|
+| ML | PyTorch, torchvision EfficientNet-B0 (transfer learning + fine-tuning) |
+| Backend | FastAPI, Uvicorn, Pillow, requests |
+| Retrieval | JSON knowledge base, whole-word keyword matching |
+| LLM | Groq (`openai/gpt-oss-120b`) or OmniRoute (OpenAI-compatible) |
+| Frontend | React, Vite, plain CSS |
+
+## Project structure
 ```text
-0 -> bruise
-1 -> burn
-2 -> cut
+backend/
+  app/
+    main.py              FastAPI app and CORS
+    config.py            settings from .env, CLASS_NAMES
+    api/routes.py        /api/health and /api/analyze (gate, RAG prompt, JSON parsing, fallback)
+    ml/predictor.py      loads the model and predicts
+    rag/retriever.py     loads knowledge_base.json + data/extra/*.json
+    llm/                 base.py, groq.py, omniroute.py, provider.py
+  data/
+    knowledge_base.json  injuries, materials, sources
+    extra/               drop extra knowledge files here (auto-merged)
+  models/                put best_wound_model_finetuned.pth here
+  verify_model.py        checks the model file loads
+frontend/
+  index.html, src/main.jsx, src/style.css
 ```
 
-The order of the earlier `classes` dictionary (`cut`, `burn`, `bruise`) does **not** determine the labels used by `ImageFolder`.
+## How it works
+```text
+Photo + items -> React -> FastAPI /api/analyze
+   1. EfficientNet-B0 predicts class + probabilities
+   2. Gate: unclear / not_wound photo -> "please upload a proper photo"
+   3. Retriever finds the injury entry and matching materials
+   4. LLM receives ONLY these facts and returns JSON
+   5. JSON is parsed (or built from the knowledge base if parsing fails)
+   6. React shows the result cards
+```
+The LLM is told to use only the supplied facts, so it does not invent medical advice.
 
-Your PDF also prints `train_data.classes` as `['bruise', 'burn', 'cut']` and your inference cell currently uses the same order. Therefore **you do not need to retrain the model because of the class-order issue**.
+## 1. Requirements
+- Python 3.11 or 3.12
+- Node.js 20.19+ or 22.12+ (check with `node -v`)
+- A Groq API key (free at console.groq.com) or a running OmniRoute server
+- The trained model file `best_wound_model_finetuned.pth`
 
-## 1. Put the trained model in place
-Copy:
-
-`best_wound_model_finetuned.pth`
-
-to:
-
-`backend/models/best_wound_model_finetuned.pth`
-
-Do not rename the file unless you also change `MODEL_PATH` in `.env`.
-
-## 2. Backend setup
-Use Python 3.11 or 3.12.
-
-Windows PowerShell:
-
+## 2. Backend setup (Windows PowerShell)
 ```powershell
 cd backend
 py -3.11 -m venv .venv
@@ -48,116 +68,90 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 copy .env.example .env
 ```
-
-Open `.env` and put your Gemini key in `GEMINI_API_KEY`.
-
-Default configuration:
-
-```env
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=YOUR_KEY
-```
-
-Start the backend:
-
+1. Copy `best_wound_model_finetuned.pth` into `backend/models/`.
+2. Open `backend/.env` in Notepad and paste your key: `GROQ_API_KEY=your_key_here`.
+3. Start the server:
 ```powershell
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+4. Open `http://127.0.0.1:8000/api/health`. You should see `"status":"ok"`.
 
-Check:
+macOS/Linux: use `python3 -m venv .venv`, `source .venv/bin/activate` and `cp .env.example .env`.
 
-`http://127.0.0.1:8000/api/health`
+If PowerShell blocks the activate script, run `Set-ExecutionPolicy -Scope Process Bypass` once and try again.
 
 ## 3. Frontend setup
-Open another terminal:
-
+Open a second terminal:
 ```powershell
 cd frontend
 npm install
 copy .env.example .env
 npm run dev
 ```
+Open `http://localhost:5173`.
 
-Open the Vite URL shown in the terminal, normally:
-
-`http://localhost:5173`
-
-## 4. Switch to OmniRoute
-There is **no automatic fallback**.
-
-Edit `backend/.env`:
-
+## 4. Configuration (`backend/.env`)
 ```env
-LLM_PROVIDER=omniroute
-OMNIROUTE_API_KEY=YOUR_OMNIROUTE_KEY
+LLM_PROVIDER=groq              # groq or omniroute
+GROQ_API_KEY=
+GROQ_MODEL=openai/gpt-oss-120b
+OMNIROUTE_API_KEY=
 OMNIROUTE_BASE_URL=http://localhost:20128/v1
 OMNIROUTE_MODEL=auto
+MODEL_PATH=models/best_wound_model_finetuned.pth
+MAX_IMAGE_MB=10
+MIN_CONFIDENCE=55              # optional: reject photos below this top-class %
+MIN_MARGIN=12                  # optional: reject if top class leads 2nd by less than this
 ```
+Restart the backend after changing `.env`. To switch to OmniRoute set `LLM_PROVIDER=omniroute` and fill its three values.
 
-Make sure your OmniRoute server is running and the configured model is available. Restart FastAPI after changing `.env`.
+## 5. Knowledge base
+`backend/data/knowledge_base.json` has three parts: `injuries` (what it is, steps, things to avoid, good signs, warning signs), `materials` (safe uses, things to avoid, aliases) and `sources`.
 
-To switch back:
+To add knowledge, create a new file such as `backend/data/extra/more.json` in the same format. It is merged when the backend starts. The content should be checked against trusted sources (Red Cross, NHS, Mayo Clinic, MedlinePlus) before real use.
 
-```env
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=YOUR_GEMINI_KEY
-```
+## 6. Photos that are not injuries
+A softmax classifier must always pick one of its classes, so an unrelated photo would still be labelled "cut". Two protections are used:
+1. **Confidence gate (works now).** If the top class is below `MIN_CONFIDENCE`, or leads the second class by less than `MIN_MARGIN` points, the API returns `rejected: true` and the page asks for a better photo. Limitation: a random image can still get a high score by chance.
+2. **Fourth class `not_wound` (better).** Train the model on non-injury images too. See section 7.
 
-The frontend and ML pipeline do not change.
+## 7. Adding the `not_wound` class (optional, recommended)
+1. In Colab, run the cells from `colab/colab_add_not_wound_class.py`. Upload `own_negatives.zip` with 60+ of your own photos (healthy skin, hands, legs, rooms, objects) first. Own photos matter more than the CIFAR images.
+2. Download `best_wound_model_v2.pth`.
+3. Rename your old model to `best_wound_model_old.pth` as a backup, then save the new file as `backend/models/best_wound_model_finetuned.pth`.
+4. In `backend/app/config.py` set `CLASS_NAMES = ['bruise', 'burn', 'cut', 'not_wound']` (alphabetical order is required because `ImageFolder` sorts class names).
+5. In `backend/verify_model.py` change `classes` to the same list, run `python verify_model.py`, then restart the backend.
 
-## 5. Colab class-order decision
-No retraining is required.
+## 8. Model results (from the training notebook)
+- Data: Kaggle "wound-dataset" (yasinpratomo), 231 images: 122 bruise, 59 burn, 50 cut. Split 70/15/15.
+- Stage 1 trained only the new classifier layer; stage 2 fine-tuned the last three feature blocks at a lower learning rate.
+- Best validation accuracy 90.91%, test accuracy 78.38% (37 test images).
+- Per-class test F1: bruise 0.87, burn 0.74, cut 0.62.
 
-In your PDF, the relevant code is the inference cell labelled `CELL 1: INITIALIZE THE TRAINED MODEL`. Near `Step 6: Define the class names`, you currently have:
+The dataset is small, so results vary between photos. More images and more classes would improve it.
 
-```python
-class_names = ["bruise", "burn", "cut"]
-```
+## 9. API
+`POST /api/analyze` (multipart form: `image`, `items` as comma-separated text)
 
-That is **correct** for your current trained model because `ImageFolder` reports:
+Accepted photo returns: `prediction`, `low_confidence`, `structured` (summary, do, dont, items, good_signs, warning_signs, see_doctor_now), `guidance_source` (`llm` or `knowledge_base`), `matched_materials`, `sources`, `provider`.
 
-```python
-train_data.classes
-# ['bruise', 'burn', 'cut']
-```
+Rejected photo returns: `rejected: true`, `reason` (`unsure` or `not_wound`), `message`, `prediction`.
 
-If you want to make the inference notebook less dependent on a manually repeated list, you can change it to:
+`GET /api/health` returns status and the active provider.
 
-```python
-class_names = ['bruise', 'burn', 'cut']
-```
+## 10. Troubleshooting
+| Problem | Fix |
+|---|---|
+| "Cannot reach the backend" | Start the backend; check `VITE_API_URL` in `frontend/.env` |
+| 502 "LLM provider failed" | Check the API key and `LLM_PROVIDER` in `backend/.env` (the knowledge-base fallback also covers this) |
+| `Model not found` | Put the `.pth` file in `backend/models/` |
+| `size mismatch` when loading | `CLASS_NAMES` length differs from the model's output classes |
+| Good photo gets rejected | Lower `MIN_CONFIDENCE` / `MIN_MARGIN` in `.env` |
 
-and keep the same order in the backend's central configuration. This is a code-organization improvement, not a model-training fix.
+## 11. Limitations and future work
+- Only three injury types, small dataset, small test set.
+- Keyword retrieval; could be replaced with embeddings and a vector store (for example using MedlinePlus health-topic XML as the corpus).
+- Possible additions: more classes (abrasion, laceration), severity estimation, multilingual output, user feedback logging.
 
-## 6. What is intentionally lightweight
-The RAG layer uses a small JSON knowledge base and keyword matching rather than a vector database. This keeps the first prototype fast and easy to run. It can later be replaced by embeddings/vector retrieval without changing the frontend contract.
-
-The LLM receives retrieved facts rather than being asked to invent medical instructions. The current knowledge base is a prototype and should be expanded/verified with authoritative first-aid sources before treating it as a serious medical tool.
-
-## 7. Architecture
-
-```text
-Image + available items
-        |
-        v
-React frontend
-        |
-        v
-FastAPI
-  |         \
-  v          v
-EfficientNet  Knowledge Base
-  |             |
-  +-------> LLM Provider
-              |       |
-           Gemini  OmniRoute
-              |
-              v
-        First-aid guidance
-```
-
-## 8. Replacing the classifier later
-Keep the API response contract the same. If you later train more classes or replace EfficientNet, update the model loader and the single central `CLASS_NAMES` configuration. The RAG and frontend architecture can remain unchanged.
-
-## Safety note
-This is a college-project prototype for first-aid education. Image classification is not a medical diagnosis. The app should direct users to professional/emergency care when symptoms are severe, worsening, uncertain, or outside the supported categories.
+## References
+American Red Cross first aid, Mayo Clinic first aid, NHS, MedlinePlus (NIH), Kaggle wound dataset by yasinpratomo, Tan and Le (2019) EfficientNet.

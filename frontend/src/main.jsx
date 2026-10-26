@@ -26,7 +26,18 @@ function GuideList({ title, tone, mark, items }) {
   )
 }
 
+function Rejected({ result }) {
+  return (
+    <div className="result">
+      <div className="alert amber"><strong>{result.reason === 'not_wound' ? 'No injury found in this photo.' : 'The model could not recognise an injury clearly.'}</strong> {result.message}</div>
+      <GuideList title="For a better photo" tone="do" mark="✓" items={['Fill the frame with the injured skin, about 15–30 cm away.', 'Use bright, even light and keep the camera steady.', 'Show one injury only, with no filters, text or other objects.', 'Wipe away blood or dirt that hides the skin, if safe to do so.']} />
+      <p className="small muted">WoundGuide only supports cuts, burns and bruises on the skin. For anything else, or if you are worried, contact a doctor.</p>
+    </div>
+  )
+}
+
 function Result({ result }) {
+  if (result.rejected) return <Rejected result={result} />
   const { prediction: p, structured: s } = result
   const probs = Object.entries(p.probabilities).sort((a, b) => b[1] - a[1])
   return (

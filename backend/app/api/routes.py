@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from io import BytesIO
 
@@ -15,7 +16,11 @@ router = APIRouter(prefix='/api', tags=['analysis'])
 predictor = WoundPredictor()
 retriever = KnowledgeRetriever()
 
-LOW_CONFIDENCE = 60.0  # below this %, the UI warns the user
+LOW_CONFIDENCE = 60.0  # below this %, the UI shows a caution
+# "Not an injury photo" gate. Photos below these limits are rejected instead of being forced into a class.
+# Tune them in backend/.env (MIN_CONFIDENCE, MIN_MARGIN) after testing a few of your own photos.
+MIN_CONFIDENCE = float(os.getenv('MIN_CONFIDENCE', '55'))  # top class must be at least this %
+MIN_MARGIN = float(os.getenv('MIN_MARGIN', '12'))          # and beat the 2nd class by this many points
 
 SYSTEM_RULES = '''You are the guidance layer of a first-aid education prototype. The image classifier is not a diagnosis. Use ONLY the supplied knowledge-base facts; do not invent treatments, dosages, materials, or procedures. Keep language simple. If information is insufficient, say so. For severe or uncertain situations, recommend professional/emergency care.'''
 
@@ -88,6 +93,20 @@ async def analyze(image: UploadFile = File(...), items: str = Form('')):
         raise HTTPException(400, 'The uploaded file is not a readable image.')
 
     prediction = await run_in_threadpool(predictor.predict, pil)
+
+    # Gate: reject photos that are not clearly one of the supported injuries
+    top = sorted(prediction['probabilities'].values(), reverse=True)
+    margin = top[0] - top[1] if len(top) > 1 else 100
+    reason = None
+    if prediction['injury'] == 'not_wound':  # only exists after retraining with the 4th class
+        reason = 'not_wound'
+    elif prediction['confidence'] < MIN_CONFIDENCE or margin < MIN_MARGIN:
+        reason = 'unsure'
+    if reason:
+        return {
+            'rejected': True, 'reason': reason, 'prediction': prediction, 'provider': LLM_PROVIDER,
+            'message': 'Please upload a clear, well-lit, close-up photo of a cut, burn or bruise on the skin.',
+        }
     item_list = [x.strip() for x in items.split(',') if x.strip()]
     context = retriever.retrieve(prediction['injury'], item_list)
 
