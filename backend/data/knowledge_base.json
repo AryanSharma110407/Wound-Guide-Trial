@@ -1,0 +1,31 @@
+{
+  "injuries": {
+    "cut": {
+      "immediate_steps": ["Apply gentle direct pressure with clean gauze or a clean cloth to control bleeding.", "Once bleeding is controlled, rinse the wound with clean running water.", "Cover with a clean dressing or bandage."],
+      "avoid": ["Do not put unverified substances, powders, toothpaste, oils, or household chemicals into the wound.", "Do not repeatedly remove a dressing that has become stuck to a wound."],
+      "seek_help": ["Seek urgent professional care for heavy or uncontrolled bleeding, deep/gaping wounds, embedded objects, loss of function or sensation, or signs of serious infection."]
+    },
+    "burn": {
+      "immediate_steps": ["Cool the burn under cool running water as soon as practical.", "Remove nearby jewelry or tight items if they are not stuck to the skin.", "After cooling, protect the area with a clean non-stick covering."],
+      "avoid": ["Do not apply ice directly to a burn.", "Do not apply butter, toothpaste, oils, or other household substances to a fresh burn.", "Do not break blisters."],
+      "seek_help": ["Seek prompt professional care for large or deep burns, electrical or chemical burns, burns involving the face, hands, feet, major joints or genitals, or any burn with severe symptoms."]
+    },
+    "bruise": {
+      "immediate_steps": ["Rest the affected area and avoid activities that increase pain.", "A cold pack wrapped in a cloth can be used for short periods during the early stage to help with swelling.", "Keep the area protected from further impact."],
+      "avoid": ["Do not put ice directly against skin.", "Do not aggressively massage a fresh or painful bruise."],
+      "seek_help": ["Seek professional care for severe pain or swelling, a rapidly enlarging bruise, repeated unexplained bruising, numbness, loss of movement, or symptoms after a significant injury."]
+    }
+  },
+  "materials": {
+    "clean water": {"safe_uses": ["Rinsing a cut", "Cooling a minor thermal burn with cool running water"], "avoid": ["Do not use contaminated water on an open wound."]},
+    "clean cloth": {"safe_uses": ["Gentle direct pressure for bleeding", "Wrapping a cold pack so ice is not directly against skin"], "avoid": ["Do not use a visibly dirty cloth on an open wound."]},
+    "gauze": {"safe_uses": ["Gentle pressure for bleeding", "Covering a cleaned wound"], "avoid": ["Do not use contaminated gauze."]},
+    "bandage": {"safe_uses": ["Covering a small cleaned cut or abrasion when appropriate"], "avoid": ["Do not wrap so tightly that circulation is impaired."]},
+    "ice pack": {"safe_uses": ["Cold therapy for a bruise when wrapped in cloth and used for short periods"], "avoid": ["Do not place directly on skin or directly on a fresh burn."]},
+    "soap": {"safe_uses": ["Cleaning hands before first-aid care"], "avoid": ["Do not scrub soap directly into a fresh open wound as a treatment."]}
+  },
+  "sources": [
+    {"name": "American Red Cross", "url": "https://www.redcross.org/take-a-class/first-aid"},
+    {"name": "Mayo Clinic First Aid", "url": "https://www.mayoclinic.org/healthy-lifestyle/first-aid"}
+  ]
+}

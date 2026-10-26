@@ -1,0 +1,264 @@
+:root {
+    font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+    color: #18212b;
+    background: #f4f6f8
+}
+
+* {
+    box-sizing: border-box
+}
+
+body {
+    margin: 0
+}
+
+.page {
+    max-width: 1100px;
+    margin: auto;
+    padding: 34px 20px 24px
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: flex-start;
+    margin-bottom: 26px
+}
+
+h1 {
+    font-size: 42px;
+    letter-spacing: -1.5px;
+    margin: 5px 0 8px
+}
+
+h2 {
+    margin: 0 0 14px;
+    font-size: 20px
+}
+
+h3 {
+    margin-top: 25px
+}
+
+.eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #66717d
+}
+
+.page header p {
+    max-width: 680px;
+    color: #5c6670;
+    line-height: 1.6;
+    margin: 0
+}
+
+.status {
+    padding: 8px 12px;
+    border: 1px solid #d7dce1;
+    border-radius: 999px;
+    background: #fff;
+    font-size: 13px
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 390px 1fr;
+    gap: 18px
+}
+
+.card {
+    background: #fff;
+    border: 1px solid #dde2e6;
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 5px 18px rgba(20, 30, 40, .04)
+}
+
+.input-card h2:not(:first-child) {
+    margin-top: 24px
+}
+
+.drop {
+    min-height: 170px;
+    border: 1.5px dashed #b9c2ca;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    cursor: pointer;
+    background: #fafbfc
+}
+
+.drop input {
+    display: none
+}
+
+.drop strong {
+    margin-bottom: 7px
+}
+
+.drop span {
+    font-size: 12px;
+    color: #77818b
+}
+
+textarea {
+    width: 100%;
+    height: 100px;
+    border: 1px solid #d8dee4;
+    border-radius: 12px;
+    padding: 12px;
+    resize: vertical;
+    font: inherit;
+    outline: none
+}
+
+textarea:focus {
+    border-color: #75808a
+}
+
+button {
+    width: 100%;
+    border: 0;
+    border-radius: 12px;
+    padding: 13px 16px;
+    margin-top: 15px;
+    background: #18212b;
+    color: white;
+    font-weight: 700;
+    cursor: pointer
+}
+
+button:disabled {
+    opacity: .55;
+    cursor: wait
+}
+
+.empty {
+    min-height: 520px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: #69737d
+}
+
+.empty p {
+    max-width: 430px;
+    line-height: 1.6
+}
+
+.icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    border: 1px solid #d9dfe4;
+    font-size: 28px;
+    margin-bottom: 15px
+}
+
+.result-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end
+}
+
+.result-head h2 {
+    text-transform: capitalize;
+    font-size: 32px;
+    margin-top: 4px
+}
+
+.confidence {
+    font-size: 26px;
+    font-weight: 800;
+    text-align: right
+}
+
+.confidence small {
+    display: block;
+    font-size: 10px;
+    color: #78828c;
+    font-weight: 500
+}
+
+.bar {
+    height: 8px;
+    background: #e7eaed;
+    border-radius: 99px;
+    overflow: hidden
+}
+
+.bar span {
+    display: block;
+    height: 100%;
+    background: #4e5964
+}
+
+.guidance {
+    margin-top: 22px;
+    line-height: 1.65;
+    color: #3e4852
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px
+}
+
+.chips span {
+    background: #f0f3f5;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-size: 12px
+}
+
+.notice {
+    margin-top: 24px;
+    background: #f5f6f7;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #616b75
+}
+
+.error {
+    margin-top: 12px;
+    color: #a02b2b;
+    background: #fff0f0;
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 13px
+}
+
+footer {
+    text-align: center;
+    color: #78828c;
+    font-size: 12px;
+    padding: 18px
+}
+
+@media(max-width:800px) {
+    .grid {
+        grid-template-columns: 1fr
+    }
+
+    header {
+        flex-direction: column
+    }
+
+    .empty {
+        min-height: 280px
+    }
+}
