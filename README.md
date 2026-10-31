@@ -100,15 +100,34 @@ OMNIROUTE_BASE_URL=http://localhost:20128/v1
 OMNIROUTE_MODEL=auto
 MODEL_PATH=models/best_wound_model_finetuned.pth
 MAX_IMAGE_MB=10
+RAG_ENABLED=true
+RAG_DB_PATH=data/chroma
+RAG_COLLECTION=first_aid_guidance
+RAG_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+RAG_MIN_SCORE=0.25
 MIN_CONFIDENCE=55              # optional: reject photos below this top-class %
 MIN_MARGIN=12                  # optional: reject if top class leads 2nd by less than this
 ```
 Restart the backend after changing `.env`. To switch to OmniRoute set `LLM_PROVIDER=omniroute` and fill its three values.
 
-## 5. Knowledge base
-`backend/data/knowledge_base.json` has three parts: `injuries` (what it is, steps, things to avoid, good signs, warning signs), `materials` (safe uses, things to avoid, aliases) and `sources`.
+## 5. Retrieval and safety fallback
+WoundGuide uses a local Retrieval-Augmented Generation (RAG) corpus for cuts, burns and bruises. It searches approved, reviewed source passages using semantic vectors before asking the LLM to write guidance. The LLM receives retrieved passages, not the legacy guidebook entries.
 
-To add knowledge, create a new file such as `backend/data/extra/more.json` in the same format. It is merged when the backend starts. The content should be checked against trusted sources (Red Cross, NHS, Mayo Clinic, MedlinePlus) before real use.
+The local corpus is stored in `backend/data/sources/snapshots.jsonl`, and the persistent Chroma vector database is `backend/data/chroma/`. Every snapshot keeps its URL, publisher, injury category and retrieval date so results can be cited in the interface.
+
+To refresh the corpus, from `backend/` run:
+
+```powershell
+python scripts/ingest_sources.py
+# Inspect snapshots.jsonl, then approve it only after review:
+python scripts/approve_sources.py --approve-reviewed
+python scripts/index_sources.py
+python scripts/test_retrieval.py
+```
+
+The source catalogue has only the three supported injury types. If a source blocks automated download (as Mayo Clinic currently does), it is skipped and reported; do not bypass that restriction. Add a permitted export or a separately approved source instead.
+
+`backend/data/knowledge_base.json` remains the safety fallback. It is used only when the vector database is unavailable, has no sufficiently relevant source passages, or the LLM fails. It also retains item aliases, allowing plain-language inputs such as `haldi` to be recognized.
 
 ## 6. Photos that are not injuries
 A softmax classifier must always pick one of its classes, so an unrelated photo would still be labelled "cut". Two protections are used:
